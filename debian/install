@@ -1,0 +1,2 @@
+lvmsnapper.py usr/sbin/
+lvmsnapper.conf /etc

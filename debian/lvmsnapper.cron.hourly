@@ -1,0 +1,10 @@
+#!/bin/sh
+
+ENABLE=
+SNAPPER=$(which lvmsnapper)
+
+
+if [ "$ENABLE" = '1' ]
+then
+	SNAPPER
+fi
