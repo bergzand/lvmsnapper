@@ -61,8 +61,11 @@ defines the intervals and the duration of the snapshot. Match rules have a
 cron like syntax, so for example a rule like "`* 1,5,7 2-10 *`" will match
 every hour, at monday and friday, between the second and tenth day of the
 month of every month. The `expire_after` option defines how long the snapshot
-should persist.
+should persist. The longest expire time is determined out of all matching
+expire sections. So if you define multiple expires, that match at a certain
+moment, the longest time among those is taken as an expiration.
 
+All other sections are considered to be snapshot definitions. For example: 
 ```
 [home]
 mountoptions = discard,ro
@@ -74,6 +77,20 @@ linkdir = /home/.snapshots
 nfsexports = 10.1.1.0/24
 nfsoptions = ro,async,wdelay,nohide,no_subtree_check
 ```
+This is a complete example of a snapshot definition.
+* **mountoptions**: The options given to `mount` for mounting the snapshots.
+* **mount**: the mount point of the original volume.
+* **vg**: The volume group containing the logical volumes.
+* **lv**: The original logical volume to be snapshotted.
+* **snapdir**: The directory to create mount points in for the snapshots.
+* **linkdir**: If specified, symlinks will be created in this directory 
+    pointing to the mount directories.
+* **nfsexports**: If specified, the new mount will be exported to these
+    ip's. Multiple subnets, ip's or hostnames can be specified, space 
+    separated.
+* **nfsoptions**: Options to be fed to exportfs for the nfs exports. This
+    option is ignored if no nfsexports are defined.
+
 
 Risk
 ----
