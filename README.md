@@ -23,6 +23,7 @@ side of the NFS mount to detect the change.
 
 Configuration
 -------------
+### Main
 An example configuration file is provided. The main section sets some generic
 settings.  
 ```
@@ -40,6 +41,7 @@ lock_file = /run/lvmsnapper.lock
 * **lock_file**: Locking ensures that LVMSnapper is started only once. /run
     is probably a good location because it should not persist over reboots.
 
+### Logging
 A logging sections is used to configure logging. At the moment this is only
 used to configure the log level:
 ```
@@ -48,7 +50,7 @@ loglevel = warning
 ```
 Loglevel can be anything of debug, info, warning, error, critical
 
-
+### Expires
 Expire sections define different intervals and expiration times:
 ```
 [expire_1]
@@ -65,6 +67,7 @@ should persist. The longest expire time is determined out of all matching
 expire sections. So if you define multiple expires, that match at a certain
 moment, the longest time among those is taken as an expiration.
 
+### Snapshots
 All other sections are considered to be snapshot definitions. For example: 
 ```
 [home]
