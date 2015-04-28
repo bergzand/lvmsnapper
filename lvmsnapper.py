@@ -257,9 +257,9 @@ def parse_expires(expire):
     """
     match = expire_syn.fullmatch(expire)
     if match:
-        expireinfo = {key: int(value) for key, value in match.groupdict(default=0).items()}
+        expire_info = {key: int(value) for key, value in match.groupdict(default=0).items()}
         logger.debug("Correctly parsed \"{}\" to a time".format(expire))
-        return timedelta(**expireinfo)
+        return timedelta(**expire_info)
     else:
         return None
 
@@ -476,7 +476,7 @@ def snapshot_finish(snapshot):
                 if not NOOP:
                     os.symlink(snapshot.snapmount, snapshot.linkname)
                 logger.debug("Created symlink at {}.".format(snapshot.linkname))
-            except:
+            except os.error:
                 logger.error("Failed to create symlink from {}.".format(snapshot.linkname))
         if snapshot.nfsexports:
             for export in snapshot.nfsexports:
@@ -492,26 +492,26 @@ def snapshot_finish(snapshot):
         os.rmdir(snapshot.snapmount)
 
 
-def create_all_snapshots(snapshotsconfs, expiretime, currenttime, state):
+def create_all_snapshots(snapshots_conf, expiration_time, current_time, state):
     """
     For each snapshot configuration, create a snapshot and finish it up
-    :param snapshotsconfs:
-    :param expiretime:
-    :param currenttime:
+    :param snapshots_conf:
+    :param expiration_time:
+    :param current_time:
     :param state:
     :return:
     """
-    for snapshotconf in snapshotsconfs:
+    for snapshotconf in snapshots_conf:
 
         snapname = "{0}-{1}".format(snapshotconf['lv'],
-                                    currenttime.strftime("%Y%m%d%H%M%S"))
+                                    current_time.strftime("%Y%m%d%H%M%S"))
         logger.info("Creating snapshot with name: {0} from {1}".format(snapname,
                                                                        snapshotconf['lv']))
         if snapshotconf['nfsexports']:
             nfsclients = parse_nfs(snapshotconf['nfsexports'])
         else:
             nfsclients = None
-        dirformat = currenttime.strftime('@GMT-%Y.%m.%d-%H.%M.%S')
+        dirformat = current_time.strftime('@GMT-%Y.%m.%d-%H.%M.%S')
         dirname = os.path.join(snapshotconf['snapdir'], dirformat)
         linkname = os.path.join(snapshotconf['linkdir'], dirformat)
 
@@ -522,8 +522,8 @@ def create_all_snapshots(snapshotsconfs, expiretime, currenttime, state):
                             origlv=snapshotconf['lv'],
                             vg=snapshotconf['vg'],
                             linkname=linkname,
-                            creationtime=currenttime,
-                            expiration=expiretime,
+                            creationtime=current_time,
+                            expiration=expiration_time,
                             nfsexports=nfsclients,
                             nfsopts=snapshotconf['nfsoptions']
                             )
@@ -586,18 +586,24 @@ def snapshot_remove(snapshot):
     :return: True if the snapshot was removed
     """
     volname = os.path.join(snapshot.vg, snapshot.snaplv)
-    lvscommand = [LVM, "lvs", "-olv_name,lv_attr,lv_tags,origin", "--noheadings", "--nameprefixes", "--separator=,", volname]
-    lvinfo = ''
+    lvscommand = [LVM,
+                  "lvs",
+                  "-olv_name,lv_attr,lv_tags,origin",
+                  "--noheadings",
+                  "--nameprefixes",
+                  "--separator=,",
+                  volname]
+    lv_info = ''
     try:
-        lvinfo = subprocess.check_output(lvscommand).decode('ascii')
+        lv_info = subprocess.check_output(lvscommand).decode('ascii')
     except subprocess.CalledProcessError:
         logger.error("Could not get ")
-    d = {match.group('key'): match.group('value') for match in lvm_parser.finditer(lvinfo)}
+    d = {match.group('key'): match.group('value') for match in lvm_parser.finditer(lv_info)}
     assert d['LVM2_ORIGIN'] == snapshot.origlv
     assert d['LVM2_LV_ATTR'][0] == 'V'
     assert d['LVM2_LV_TAGS'] == LVM2_TAG
-    removecommand = [LVM, "lvremove", "-f", volname]
-    subprocess.check_call(removecommand)
+    remove_command = [LVM, "lvremove", "-f", volname]
+    subprocess.check_call(remove_command)
     return True
 
 
@@ -661,13 +667,13 @@ def save_state(statelocation, state):
         logger.error("Could not open state file for writing: {}".format(e))
 
 
-def lock(lock_file):
+def lock(locking_file):
     """
     Try to acquire a lock on the file to prevent multiple lvmsnapper instances
-    :param lock_file: A path to the lock file
+    :param locking_file: A path to the lock file
     :return: True if lock acquired
     """
-    fp = open(lock_file, 'w')
+    fp = open(locking_file, 'w')
     try:
         fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
@@ -678,12 +684,12 @@ if __name__ == "__main__":
     global logger
 
     logger = logging.getLogger(__name__)
-    stdoutlog = logging.StreamHandler()
-    stdoutlog.setLevel(logging.DEBUG)
-    sysloglog = handlers.SysLogHandler(facility=handlers.SysLogHandler.LOG_SYSLOG, address='/dev/log')
-    sysloglog.setLevel(logging.DEBUG)
-    logger.addHandler(stdoutlog)
-    logger.addHandler(sysloglog)
+    stdout_log = logging.StreamHandler()
+    stdout_log.setLevel(logging.DEBUG)
+    syslog_log = handlers.SysLogHandler(facility=handlers.SysLogHandler.LOG_SYSLOG, address='/dev/log')
+    syslog_log.setLevel(logging.DEBUG)
+    logger.addHandler(stdout_log)
+    logger.addHandler(syslog_log)
 
     # Parse config, report errors
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
@@ -721,6 +727,7 @@ if __name__ == "__main__":
         logger.warn("No loglevel found in config, maintaining default loglevel")
     logger.debug("starting config parser")
 
+    statefile = None
     # state file checking
     try:
         statefile = config['main']['statefile']
@@ -731,8 +738,8 @@ if __name__ == "__main__":
         logger.error("No statefile found in main section of the config")
         inc_errors()
 
-    expireconf = get_expires(config)
-    snapconf = get_snapdirs(config)
+    expiration_conf = get_expires(config)
+    snap_conf = get_snapdirs(config)
 
     if errors:
         logger.critical("Found {} error(s) in config, exiting".format(errors))
@@ -741,17 +748,17 @@ if __name__ == "__main__":
     # check for the lock file
     if lock(lock_file):
 
-        curtime = datetime.utcnow()
-        expiretime = get_longest_expire(expireconf, curtime)
-        if not expiretime:
+        cur_time = datetime.utcnow()
+        expire_time = get_longest_expire(expiration_conf, cur_time)
+        if not expire_time:
             logger.info("No matching expiration, nothing to do")
             exit(0)
-        logger.info("Snapshot expiration for this run is: {}".format(expiretime))
+        logger.info("Snapshot expiration for this run is: {}".format(expire_time))
 
         state = get_state(statefile)
 
-        state = create_all_snapshots(snapconf, expiretime, curtime, state)
-        state = remove_expired(state, curtime)
+        state = create_all_snapshots(snap_conf, expire_time, cur_time, state)
+        state = remove_expired(state, cur_time)
         save_state(statefile, state)
     else:
         logger.error("Could not acquire lock, exiting")
