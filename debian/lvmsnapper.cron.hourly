@@ -1,7 +1,7 @@
 #!/bin/sh
 
-ENABLE=
-SNAPPER=$(which lvmsnapper)
+ENABLE="1"
+SNAPPER=$(which lvmsnapper.py)
 
 
 if [ "$ENABLE" = '1' ]
