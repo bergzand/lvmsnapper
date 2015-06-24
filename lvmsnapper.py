@@ -32,7 +32,7 @@ import fcntl
 NOOP = False
 
 # default config location
-CONFIGFILE = 'lvmsnapper.conf'
+CONFIGFILE = '/etc/lvmsnapper.conf'
 
 #
 SYSSECTIONS = ['main', 'logging', 'expire_']
@@ -389,7 +389,7 @@ def get_longest_expire(expire_list, current_time):
             delta = values['expire']
             if delta > longest:
                 longest = delta
-    if longest.seconds == 0:
+    if longest.total_seconds() == 0:
         return None
     else:
         return current_time + longest
