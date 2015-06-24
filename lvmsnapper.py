@@ -685,6 +685,8 @@ if __name__ == "__main__":
 
     logger = logging.getLogger(__name__)
     stdout_log = logging.StreamHandler()
+    stdout_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    stdout_log.setFormatter(stdout_formatter)
     stdout_log.setLevel(logging.DEBUG)
     syslog_log = handlers.SysLogHandler(facility=handlers.SysLogHandler.LOG_SYSLOG, address='/dev/log')
     syslog_log.setLevel(logging.DEBUG)
