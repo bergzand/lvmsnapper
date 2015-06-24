@@ -6,5 +6,5 @@ SNAPPER=$(which lvmsnapper)
 
 if [ "$ENABLE" = '1' ]
 then
-	SNAPPER
+	$SNAPPER
 fi
