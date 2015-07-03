@@ -1,3 +1,23 @@
+lvmsnapper (0.3.0) UNRELEASED; urgency=low
+
+ * Slight enhancement to log lines to improve clarity
+ * Added --mountall option to mount all snapshots from the state file
+ * Added --config option to specify an alternative config file
+ 
+ -- Koen Zandberg <koenz@scintilla.utwente.nl>  Thu, 03 Jul 2015 15:31:00 +0200
+
+lvmsnapper (0.2.1) UNRELEASED; urgency=low
+ 
+ * Fixed errors in the cron.hourly
+
+ -- Koen Zandberg <koenz@scintilla.utwente.nl>  Thu, 24 Jun 2015 11:26:00 +0200
+
+lvmsnapper (0.2) UNRELEASED; urgency=low
+ 
+ * fixed stdout logging to include datetime and loglevel
+
+ -- Koen Zandberg <koenz@scintilla.utwente.nl>  Thu, 24 Jun 2015 11:14:00 +0200
+
 lvmsnapper (0.1) UNRELEASED; urgency=low
 
   * Initial release.
