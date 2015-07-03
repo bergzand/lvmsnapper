@@ -27,6 +27,7 @@ import logging
 from logging import handlers
 import pickle
 import fcntl
+import argparse
 
 # do nothing if True, useful for testing
 NOOP = False
@@ -245,7 +246,7 @@ def parse_nfs(nfsexports):
     lexer = shlex.shlex(nfsexports)
     lexer.wordchars += '/.'
     exports = [export for export in lexer]
-    logger.info("Found the following exports: " + ' '.join(exports))
+    logger.debug("Found exports: " + ' '.join(exports))
     return exports
 
 
@@ -258,8 +259,9 @@ def parse_expires(expire):
     match = expire_syn.fullmatch(expire)
     if match:
         expire_info = {key: int(value) for key, value in match.groupdict(default=0).items()}
-        logger.debug("Correctly parsed \"{}\" to a time".format(expire))
-        return timedelta(**expire_info)
+        expiretime = timedelta(**expire_info)
+        logger.debug("Correctly parsed \"{0}\" to {1} seconds.".format(expire, expiretime.total_seconds()))
+        return expiretime
     else:
         return None
 
@@ -308,7 +310,7 @@ def parse_time(match):
                 continue
             break
         else:
-            logger.debug("Correctly parsed {0} to values".format(match))
+            logger.debug("Correctly parsed {0} to matching times".format(match))
             return postconv
         return None
 
@@ -447,11 +449,12 @@ def snapshot_finish(snapshot):
     mount_device = os.path.join('/dev', snapshot.vg, snapshot.snaplv)
     activation_command = [LVM, "lvchange", "-ay", "-K", os.path.join(snapshot.vg, snapshot.snaplv)]
     subprocess.check_call(activation_command)
-    uuid_command = ["/sbin/tune2fs", "-Utime", mount_device]
-    subprocess.check_call(uuid_command)
+    if not os.path.ismount(snapshot.snapmount):
+        uuid_command = ["/sbin/tune2fs", "-Utime", mount_device]
+        subprocess.check_call(uuid_command)
     # create dir
     logger.debug("Creating directory: {}".format(snapshot.snapmount))
-    if not NOOP:
+    if not os.path.isdir(snapshot.snapmount) and not NOOP:
         os.mkdir(snapshot.snapmount)
     # mounting
     if snapshot.mountopts:
@@ -460,7 +463,7 @@ def snapshot_finish(snapshot):
         mount_opts = ''
     mount_command = ['mount', mount_opts, mount_device, snapshot.snapmount]
     logger.debug("Trying to mount with command: {}".format(' '.join(mount_command)))
-    if not NOOP:
+    if not os.path.ismount(snapshot.snapmount) and not NOOP:
         try:
             subprocess.check_call(mount_command)
             mounted = True
@@ -473,7 +476,7 @@ def snapshot_finish(snapshot):
         # create symlink
         if snapshot.linkname:
             try:
-                if not NOOP:
+                if not os.path.exists(snapshot.linkname) and not NOOP:
                     os.symlink(snapshot.snapmount, snapshot.linkname)
                 logger.debug("Created symlink at {}.".format(snapshot.linkname))
             except os.error:
@@ -495,10 +498,10 @@ def snapshot_finish(snapshot):
 def create_all_snapshots(snapshots_conf, expiration_time, current_time, state):
     """
     For each snapshot configuration, create a snapshot and finish it up
-    :param snapshots_conf:
-    :param expiration_time:
-    :param current_time:
-    :param state:
+    :param snapshots_conf:  Config dict
+    :param expiration_time: TimeDate object of the expiration time
+    :param current_time:    TimeDate object with utcnow()
+    :param state:           State object from the state file
     :return:
     """
     for snapshotconf in snapshots_conf:
@@ -683,6 +686,11 @@ def lock(locking_file):
 if __name__ == "__main__":
     global logger
 
+    parser = argparse.ArgumentParser(description='Rotating snapshot tooling for lvm thin snapshots')
+    parser.add_argument('-m', '--mountall', help='Mount all snapshots from the state file', action='store_true')
+    parser.add_argument('-c', '--config', help='Config file location', nargs='?', default=CONFIGFILE)
+    args = parser.parse_args()
+    configfile = args.config
     logger = logging.getLogger(__name__)
     stdout_log = logging.StreamHandler()
     stdout_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -696,7 +704,7 @@ if __name__ == "__main__":
     # Parse config, report errors
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     if CONFIGFILE not in config.read(CONFIGFILE):
-        print("Config file not found at: {}".format(CONFIGFILE))
+        print("Config file not found at: {}".format(configfile))
         exit(1)
 
     # Check if we should run
@@ -749,19 +757,24 @@ if __name__ == "__main__":
 
     # check for the lock file
     if lock(lock_file):
-
-        cur_time = datetime.utcnow()
-        expire_time = get_longest_expire(expiration_conf, cur_time)
-        if not expire_time:
-            logger.info("No matching expiration, nothing to do")
-            exit(0)
-        logger.info("Snapshot expiration for this run is: {}".format(expire_time))
-
+        # Load state file
         state = get_state(statefile)
+        # Check if we just need to mount all snapshots from the state file
+        if args.mountall:
+            logger.info("Recreating all snapshot mounts.")
+            for snapshot in state:
+                snapshot_finish(snapshot)
+        else:
+            cur_time = datetime.utcnow()
+            expire_time = get_longest_expire(expiration_conf, cur_time)
+            if not expire_time:
+                logger.info("No matching expiration, nothing to do.")
+                exit(0)
+            logger.info("Snapshot expiration for this run is: {}.".format(expire_time))
 
-        state = create_all_snapshots(snap_conf, expire_time, cur_time, state)
-        state = remove_expired(state, cur_time)
-        save_state(statefile, state)
+            state = create_all_snapshots(snap_conf, expire_time, cur_time, state)
+            state = remove_expired(state, cur_time)
+            save_state(statefile, state)
     else:
-        logger.error("Could not acquire lock, exiting")
+        logger.error("Could not acquire lock, exiting.")
         exit(1)

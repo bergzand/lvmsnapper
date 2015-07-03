@@ -21,6 +21,10 @@ unexport the volume again. Although this might be the cleanest way to remove
 the snapshot, it might still be necessary to remount the export at the client
 side of the NFS mount to detect the change.
 
+Installation
+------------
+
+
 Configuration
 -------------
 ### Main
@@ -94,6 +98,12 @@ This is a complete example of a snapshot definition.
 * **nfsoptions**: Options to be fed to exportfs for the nfs exports. This
     option is ignored if no nfsexports are defined.
 
+
+Mounting all snapshots
+----------------------
+When you want to mount all snapshots from the statefile, you can use the 
+--mountall option. For example when after a reboot all your mounts are
+unmounted.
 
 Risk
 ----
